@@ -13,6 +13,9 @@
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// How long the toast stays on screen once it appears.
+const TOAST_MS = 5000;
+
 const form = document.getElementById("onboarding-form");
 const successPanel = document.getElementById("success-panel");
 const successMessage = document.getElementById("success-message");
@@ -60,12 +63,18 @@ let toastTimer = null;
 
 function showToast(text) {
   toast.textContent = text;
-  toast.hidden = false;
-  if (toastTimer !== null) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.hidden = true;
-    toastTimer = null;
-  }, 5000);
+  // Restart the countdown only when the toast actually appears. Re-showing
+  // it while it is already visible keeps the original deadline, so a stream
+  // of submissions can never keep the toast on screen indefinitely: any
+  // visibility window is at most TOAST_MS long.
+  if (toast.hidden) {
+    toast.hidden = false;
+    if (toastTimer !== null) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.hidden = true;
+      toastTimer = null;
+    }, TOAST_MS);
+  }
 }
 
 function showSuccess() {

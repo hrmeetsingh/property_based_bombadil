@@ -118,7 +118,9 @@ export const dayMovesOneStepAtATime = always(/* current day vs. next day */);
 every field is required, `email` must match a conventional pattern, errors
 are shown only for *touched & invalid* fields and clear as soon as the value
 becomes valid. Submitting valid values hides the form, shows the success
-panel and raises a toast that auto-dismisses after 4s. Submitting invalid
+panel and raises a toast that auto-dismisses 5 seconds after it appears
+(re-showing an already-visible toast keeps the original deadline, so
+overlapping notifications can never pin it on screen). Submitting invalid
 values keeps the form up and marks the offending fields.
 
 **TUI app** — `tui/main.go` renders each frame into a full terminal-sized
