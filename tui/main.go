@@ -84,8 +84,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selected--
 			}
 		case "right", "l":
+			// Off-by-one bug: advancing skips a day.
 			if m.selected < len(m.prices)-1 {
-				m.selected++
+				m.selected += 2
+				if m.selected > len(m.prices)-1 {
+					m.selected = len(m.prices) - 1
+				}
 			}
 		case "q", "ctrl+c":
 			m.quitting = true
@@ -137,8 +141,9 @@ func (m model) View() string {
 
 	// Row 1: status line (always). Day index is 0-based, matching the
 	// x-axis labels and the dataset indices used by the spec.
+	// Off-by-one bug: the price shown is offset by 5 cents from the dataset.
 	day := m.selected
-	status := fmt.Sprintf("Day: %02d/%02d  Close: $%.2f", day, len(m.prices), m.prices[day])
+	status := fmt.Sprintf("Day: %02d/%02d  Close: $%.2f", day, len(m.prices), m.prices[day]+0.05)
 	write(1, 0, status)
 
 	// Degenerate terminals: title + status only.
@@ -189,15 +194,21 @@ func (m model) View() string {
 	selCol := dayColumn(day, days, width)
 	selRow := rowForPrice(m.prices[day])
 	canvas[selRow][selCol] = pointChar
+	// Rendering bug: the dotted line is drawn one column to the right of
+	// the selected day, so it no longer touches the point on the graph.
+	dottedCol := selCol + 1
+	if dottedCol >= width {
+		dottedCol = width - 2
+	}
 	for r := selRow + 1; r <= axisRow; r++ {
-		canvas[r][selCol] = dottedChar
+		canvas[r][dottedCol] = dottedChar
 	}
 
 	// X-axis line, interrupted by the dotted line at the selected column.
 	for c := 0; c < width; c++ {
 		canvas[axisRow][c] = axisChar
 	}
-	canvas[axisRow][selCol] = dottedChar
+	canvas[axisRow][dottedCol] = dottedChar
 
 	// X-axis labels: every 5th day, selected day bracketed (written last
 	// so the bracket always survives an overlap).
