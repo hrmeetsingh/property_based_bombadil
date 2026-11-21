@@ -1,0 +1,15 @@
+{
+  "name": "property_based_bombadil",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bombadil property-based UI tests demo: a static onboarding web form and a Go TUI stock screen",
+  "type": "module",
+  "scripts": {
+    "test": "make test",
+    "test:web": "make test-web",
+    "test:tui": "make test-tui"
+  },
+  "devDependencies": {
+    "@antithesishq/bombadil": "^0.8.0"
+  }
+}
