@@ -11,10 +11,13 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = dirname(fileURLToPath(new URL("../", import.meta.url)));
+// fileURLToPath of "../" keeps the trailing separator, so this is already
+// the project root - do not run dirname() on it, that would strip the
+// root directory name itself.
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const BOMBADIL = join(ROOT, "node_modules/.bin/bombadil");
 
 const SUITE_LABELS = {
@@ -50,9 +53,9 @@ if (rows.length === 0) {
 
 // --- violation extraction ---------------------------------------------------
 
-// Walk an arbitrary JSON structure and collect every string that appears
-// under a key whose name mentions violations or properties. Tolerant to
-// the exact trace JSON shape.
+// Walk an arbitrary JSON structure collecting violated property names.
+// The trace format puts them in `metadata.violations[].name`; the fallbacks
+// keep the report readable even if that shape ever changes.
 function collectViolationNames(value, out) {
   if (Array.isArray(value)) {
     for (const item of value) collectViolationNames(item, out);
@@ -60,9 +63,17 @@ function collectViolationNames(value, out) {
   }
   if (value !== null && typeof value === "object") {
     for (const [key, item] of Object.entries(value)) {
-      if (/(violation|propert)/i.test(key)) {
-        gatherStrings(item, out);
+      if (key === "violations" && Array.isArray(item)) {
+        for (const entry of item) {
+          if (entry !== null && typeof entry === "object" && typeof entry.name === "string") {
+            out.push(entry.name);
+          } else {
+            gatherStrings(entry, out);
+          }
+        }
+        continue;
       }
+      if (/propert/i.test(key)) gatherStrings(item, out);
       collectViolationNames(item, out);
     }
   }
@@ -79,10 +90,11 @@ function gatherStrings(value, out) {
 }
 
 function violationsFromTrace(tracePath) {
-  if (!existsSync(tracePath)) return {};
+  const abs = resolve(tracePath);
+  if (!existsSync(abs)) return {};
   let jsonl;
   try {
-    jsonl = execFileSync(BOMBADIL, ["trace", tracePath, "--json"], {
+    jsonl = execFileSync(BOMBADIL, ["trace", abs, "--json"], {
       cwd: ROOT,
       encoding: "utf-8",
       maxBuffer: 256 * 1024 * 1024,
