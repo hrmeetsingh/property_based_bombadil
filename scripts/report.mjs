@@ -149,19 +149,24 @@ let totalFailed = 0;
 let worstCode = 0;
 
 for (const row of rows) {
-  const status = row.code === 0 ? "PASS" : row.code === 2 ? "FAIL" : "ERROR";
-  if (row.code !== 0) {
-    totalFailed += 1;
-    if (row.code === 2 && worstCode < 2) worstCode = 2;
-    if (row.code === 1) worstCode = 1;
-  }
-
   let violations = {};
   if (row.code !== 0) {
     violations = violationsFromTrace(row.trace);
     if (Object.keys(violations).length === 0) violations = violationsFromLog(row.log);
   }
   const violationCount = Object.values(violations).reduce((a, b) => a + b, 0);
+  const hasViolations = violationCount > 0;
+
+  // Property violations are a FAIL even when the driver's exit code says
+  // otherwise (the terminal driver exits 1 on violations, the browser
+  // driver exits 2). Only runs without violations and non-zero exit are
+  // genuine errors.
+  const status = row.code === 0 ? "PASS" : hasViolations ? "FAIL" : "ERROR";
+  if (row.code !== 0) {
+    totalFailed += 1;
+    if (hasViolations && worstCode < 2) worstCode = 2;
+    if (!hasViolations) worstCode = 1;
+  }
 
   console.log(
     ` ${pad(row.label, 18)}${pad(status, 10)}${padStart(row.code === 0 ? 0 : violationCount, 12)}${padStart(row.duration + "s", 11)}  ${row.trace}`,
@@ -174,7 +179,7 @@ for (const row of rows) {
       console.log(` ${pad("", 20)}- ${name} (x${violations[name]})`);
     }
   }
-  if (row.code === 1) {
+  if (status === "ERROR") {
     console.log(` ${pad("", 18)}see log: ${row.log}`);
   }
 }

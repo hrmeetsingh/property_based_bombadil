@@ -25,7 +25,6 @@ import {
   clicks,
   inputs,
   scroll,
-  reload,
 } from "@antithesishq/bombadil/browser/defaults/actions";
 
 // Browser defaults: no runtime errors, no failing network requests.
@@ -169,11 +168,15 @@ const resetAction = actions(() => {
   return [resetRegistration()];
 });
 
+// Action note: the `reload` default generator is intentionally not used.
+// A page reload resets the whole UI state (including the toast), which
+// would silently satisfy the toastEventuallyHides guarantee without the
+// app ever actually hiding the toast - masking exactly the bug that
+// property exists to catch.
 export const onboardingActions = weighted([
   [30, clicks],
   [30, inputs],
   [5, scroll],
-  [3, reload],
   [12, formActions],
   [4, resetAction],
 ]);

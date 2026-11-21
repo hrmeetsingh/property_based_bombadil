@@ -158,10 +158,13 @@ app). Actions are randomized with weights, so every run explores differently.
 | `noConsoleErrors` *(default)* | No `console.error` output. |
 | `noHttpErrorCodes` *(default)* | No HTTP 4xx/5xx responses (the static server only ever serves 200s). |
 
-Actions: Bombadil's default **click / type / scroll / reload** generators,
-plus two custom actions that drive the interesting flows directly —
+Actions: Bombadil's default **click / type / scroll** generators, plus two
+custom actions that drive the interesting flows directly —
 `submitWith("valid" | "invalidEmail" | "empty")` and `resetRegistration()` —
 guarded so they only fire when the form / success panel is on screen.
+(The `reload` default is deliberately excluded: a reload resets the UI
+state and would silently satisfy `toastEventuallyHides` without the app
+ever hiding the toast itself.)
 
 #### TUI invariants — `bombadil/tui.spec.ts`
 
