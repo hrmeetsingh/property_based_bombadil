@@ -110,11 +110,11 @@ button:hover {
   background: #146139;
 }
 
-/* Toast lives in the top-right corner of the viewport. */
+/* Toast sits in the bottom-left corner of the viewport. */
 .toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
+  bottom: 20px;
+  left: 20px;
   min-width: 260px;
   max-width: 420px;
   padding: 14px 18px;

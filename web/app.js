@@ -41,6 +41,13 @@ function inputValue(id) {
 
 function fieldError(id) {
   const spec = fields.find((f) => f.id === id);
+  if (id === "email") {
+    const value = inputValue(id);
+    if (value === "") return "Email is required.";
+    // The pattern check was accidentally dropped here: any non-empty
+    // value now counts as a valid email address.
+    return "";
+  }
   return spec.validate(inputValue(id));
 }
 
@@ -67,19 +74,12 @@ let toastShowings = 0;
 
 function showToast(text) {
   toast.textContent = text;
-  // Restart the countdown only when the toast actually appears. Re-showing
-  // it while it is already visible keeps the original deadline, so a stream
-  // of submissions can never keep the toast on screen indefinitely: any
-  // visibility window is at most TOAST_MS long.
   if (toast.hidden) {
     toast.hidden = false;
     toastShowings += 1;
     toast.dataset.showing = String(toastShowings);
-    if (toastTimer !== null) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toast.hidden = true;
-      toastTimer = null;
-    }, TOAST_MS);
+    // The auto-dismiss timer was accidentally removed here: once shown, the
+    // toast now stays on screen forever.
   }
 }
 
