@@ -1,0 +1,11 @@
+# dependencies
+node_modules/
+
+# build output
+tui/bin/
+
+# test artifacts (traces, logs, reports)
+traces/
+
+# os noise
+.DS_Store

@@ -1,0 +1,127 @@
+/* Desktop-only form factor: the page is designed for a 1024x768 viewport. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 1024px;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  background: #f4f6fb;
+  color: #1f2430;
+}
+
+.page {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.card {
+  width: 560px;
+  background: #ffffff;
+  border: 1px solid #dfe3ec;
+  border-radius: 10px;
+  padding: 40px 48px;
+  box-shadow: 0 6px 24px rgba(31, 36, 48, 0.08);
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+}
+
+.subtitle {
+  margin: 0 0 28px;
+  color: #6b7280;
+}
+
+.field {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid #c3c9d6;
+  border-radius: 6px;
+  outline: none;
+}
+
+input:focus {
+  border-color: #3556d1;
+  box-shadow: 0 0 0 3px rgba(53, 86, 209, 0.15);
+}
+
+input[aria-invalid="true"] {
+  border-color: #d13b3b;
+}
+
+.error {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #d13b3b;
+}
+
+button {
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #3556d1;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #28439f;
+}
+
+.success {
+  text-align: center;
+  padding: 24px 0 8px;
+}
+
+.success h2 {
+  margin: 0 0 8px;
+  color: #1a7f4b;
+}
+
+.success p {
+  margin: 0 0 24px;
+  color: #4b5563;
+}
+
+#reset-button {
+  background: #1a7f4b;
+}
+
+#reset-button:hover {
+  background: #146139;
+}
+
+/* Toast lives in the top-right corner of the viewport. */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  min-width: 260px;
+  max-width: 420px;
+  padding: 14px 18px;
+  font-size: 14px;
+  color: #ffffff;
+  background: #1a7f4b;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(31, 36, 48, 0.25);
+  z-index: 1000;
+}
