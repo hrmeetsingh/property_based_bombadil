@@ -37,7 +37,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected--
 		}
 	case "right", "l":
-		if m.selected < last {
+		if m.selected < len(m.stock.Days) {
 			m.selected++
 		}
 	case "home", "g":
@@ -62,10 +62,11 @@ func (m model) View() string {
 // "Selected: Day 07 · 2026-10-07 · Price: $113.16 · Change: +0.98".
 func (m model) status() string {
 	days := m.stock.Days
-	d := days[m.selected]
+	i := min(m.selected, len(days)-1) // never index past the data
+	d := days[i]
 	change := 0.0
-	if m.selected > 0 {
-		change = d.Price - days[m.selected-1].Price
+	if i > 0 {
+		change = d.Price - days[i-1].Price
 	}
-	return fmt.Sprintf("Selected: Day %02d · %s · Price: $%.2f · Change: %+.2f", d.Day, d.Date, d.Price, change)
+	return fmt.Sprintf("Selected: Day %02d · %s · Price: $%.2f · Change: %+.2f", m.selected+1, d.Date, d.Price, change)
 }
