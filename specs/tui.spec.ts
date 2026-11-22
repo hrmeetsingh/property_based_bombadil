@@ -101,62 +101,63 @@ function findGlyph(lines: string[], glyph: string): { row: number; col: number }
   return found;
 }
 
-const selectedDay = screen.map((lines) => status(lines)?.day ?? null);
+// Small cells derived from the screen. Properties read these rather than
+// the whole screen, so a violation report shows just the values involved.
+const drawn = screen.map(ready);
+const statusLine = screen.map(status);
+const selectedDay = statusLine.map((s) => s?.day ?? null);
+/** For each day, the plot rows holding a point (should be exactly one). */
+const plottedRows = screen.map((lines) =>
+  days.map((d) => {
+    const rows: number[] = [];
+    for (let row = CHART_TOP; row < AXIS_ROW; row++) {
+      const ch = cellAt(lines, row, dayCol(d.day));
+      if (ch === POINT || ch === MARKER) rows.push(row);
+    }
+    return rows;
+  }),
+);
+const markers = screen.map((lines) => findGlyph(lines, MARKER));
+const dottedCells = screen.map((lines) => findGlyph(lines, DOTTED));
+
+const inRange = (day: number | null): day is number =>
+  day !== null && day >= 1 && day <= DAY_COUNT;
 
 // ---------------------------------------------------------------------------
 // Properties
 // ---------------------------------------------------------------------------
 
 /** The selected day is always a real day of the data set (1..30). */
-export const selectionInRange = always(() => {
-  const lines = screen.current;
-  if (!ready(lines)) return true;
-  const day = selectedDay.current;
-  return day !== null && day >= 1 && day <= DAY_COUNT;
-});
+export const selectionInRange = always(
+  () => !drawn.current || inRange(selectedDay.current),
+);
 
 /** The status line shows the selected day's real date and price. */
 export const statusMatchesData = always(() => {
-  const lines = screen.current;
-  if (!ready(lines)) return true;
-  const s = status(lines);
+  if (!drawn.current) return true;
+  const s = statusLine.current;
   if (s === null) return false; // the status line must always be there
   const expected = days[s.day - 1];
   if (expected === undefined) return true; // reported by selectionInRange
-  return (
-    s.date === expected.date &&
-    s.price === expected.price.toFixed(2)
-  );
+  return s.date === expected.date && s.price === expected.price.toFixed(2);
 });
 
-/** Every day's price is plotted on the row its price maps to. */
+/** Every day's price is plotted on the row its price maps to, and only there. */
 export const lineMatchesPrices = always(() => {
-  const lines = screen.current;
-  if (!ready(lines)) return true;
-  return days.every((d) => {
-    const col = dayCol(d.day);
-    for (let row = CHART_TOP; row < AXIS_ROW; row++) {
-      const ch = cellAt(lines, row, col);
-      const isPoint = ch === POINT || ch === MARKER;
-      // A point here, and only here, in this day's column.
-      if (isPoint !== (row === priceRow(d.price))) return false;
-    }
-    return true;
+  if (!drawn.current) return true;
+  return days.every((d, i) => {
+    const rows = plottedRows.current[i];
+    return rows.length === 1 && rows[0] === priceRow(d.price);
   });
 });
 
 /** Exactly one marker, sitting on the selected day's price. */
 export const markerOnSelectedDay = always(() => {
-  const lines = screen.current;
-  if (!ready(lines)) return true;
+  if (!drawn.current) return true;
   const day = selectedDay.current;
-  if (day === null || day < 1 || day > DAY_COUNT) return true; // reported by selectionInRange
-  const markers = findGlyph(lines, MARKER);
-  return (
-    markers.length === 1 &&
-    markers[0].col === dayCol(day) &&
-    markers[0].row === priceRow(days[day - 1].price)
-  );
+  if (!inRange(day)) return true; // reported by selectionInRange
+  const m = markers.current;
+  return m.length === 1 && m[0].col === dayCol(day) && m[0].row === priceRow(days[day - 1].price);
 });
 
 /**
@@ -165,14 +166,13 @@ export const markerOnSelectedDay = always(() => {
  * cells anywhere else.
  */
 export const dottedLineTouchesPoint = always(() => {
-  const lines = screen.current;
-  if (!ready(lines)) return true;
+  if (!drawn.current) return true;
   const day = selectedDay.current;
-  if (day === null || day < 1 || day > DAY_COUNT) return true; // reported by selectionInRange
+  if (!inRange(day)) return true; // reported by selectionInRange
   const col = dayCol(day);
   const top = priceRow(days[day - 1].price) + 1; // just below the marker
   const expected = AXIS_ROW - top; // cells from there down to the axis
-  const dotted = findGlyph(lines, DOTTED);
+  const dotted = dottedCells.current;
   return (
     dotted.length === expected &&
     dotted.every((c) => c.col === col && c.row >= top && c.row < AXIS_ROW)
@@ -202,11 +202,11 @@ function expectedDay(day: number, keys: string | null): number {
  */
 export const navigationStateMachine = always(
   now(() => {
-    if (!ready(screen.current)) return true;
+    if (!drawn.current) return true;
     const before = selectedDay.current;
     if (before === null) return true; // reported by selectionInRange
     return next(() => {
-      if (!ready(screen.current)) return true;
+      if (!drawn.current) return true;
       return selectedDay.current === expectedDay(before, lastKeys.current);
     });
   }),
