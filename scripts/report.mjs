@@ -78,8 +78,13 @@ function violationMessage(log, name) {
   for (const line of rest) {
     if (/^(Test finished|Exited|Inspect the test|terminal test failed)/.test(line)) break;
     if (/\bwas violated:$/.test(line)) break;
-    if (line.startsWith("however")) seen = true;
-    if (seen) out.push(line.trim());
+    const at = line.indexOf("however");
+    if (!seen && at >= 0) {
+      seen = true;
+      out.push(line.slice(at).trim());
+    } else if (seen) {
+      out.push(line.trim());
+    }
   }
   const text = out.filter(Boolean).join(" ").replace(/\s+/g, " ");
   return text.length > 300 ? `${text.slice(0, 297)}...` : text || null;
