@@ -154,7 +154,7 @@ func drawChart(c canvas, stock Stock, selected int) {
 	if selected >= 0 && selected < len(days) {
 		col := DayCol(selected)
 		markerRow := PriceRow(days[selected].Price, min, max)
-		for row := AxisRow - 1; row > markerRow; row-- {
+		for row := AxisRow - 1; row > markerRow+1; row-- {
 			c.set(row, col, DottedGlyph, highlightOn)
 		}
 		c.set(markerRow, col, MarkerGlyph, highlightOn)
