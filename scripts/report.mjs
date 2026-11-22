@@ -55,7 +55,7 @@ function readTrace(file) {
 }
 
 function describeAction(action) {
-  if (!action) return "the initial state";
+  if (!action) return null;
   if (typeof action === "string") return action;
   const [kind, body] = Object.entries(action)[0];
   if (kind === "TypeText") return `typing ${JSON.stringify(body.text ?? body)}`;
@@ -160,7 +160,7 @@ for (const s of summaries) {
       continue;
     }
     console.log(`  ${red("✗")} ${bold(name)}`);
-    console.log(`      first violated at state #${v.index} (${v.at}s), after ${v.after}`);
+    console.log(`      first violated at state #${v.index} (${v.at}s), ${v.after ? `after ${v.after}` : "in the initial state"}`);
     if (v.message) console.log(dim(`      ${v.message}`));
   }
   for (const v of s.violations.filter((v) => !s.properties.includes(v.name))) {

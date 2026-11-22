@@ -139,16 +139,22 @@ const allValid = () => FIELDS.every((name) => rules[name](fields.current[name].v
 // ---------------------------------------------------------------------------
 
 /**
+ * Fields whose error display disagrees with the rules. A derived cell, so a
+ * violation report names just the offending fields.
+ */
+const errorMismatches = fields.map((current) =>
+  FIELDS.filter((name) => {
+    const f = current[name];
+    const shouldShowError = f.touched && !rules[name](f.value);
+    return (f.error !== null) !== shouldShowError;
+  }).map((name) => ({ field: name, ...current[name] })),
+);
+
+/**
  * Both directions: a touched field shows an error exactly when its value
  * breaks the rule, and an untouched field shows no error.
  */
-export const errorShownIffInvalid = always(() =>
-  FIELDS.every((name) => {
-    const f = fields.current[name];
-    const shouldShowError = f.touched && !rules[name](f.value);
-    return (f.error !== null) === shouldShowError;
-  }),
-);
+export const errorShownIffInvalid = always(() => errorMismatches.current.length === 0);
 
 /** The success summary only ever shows values that pass every rule. */
 export const successShowsOnlyValidValues = always(() => {
