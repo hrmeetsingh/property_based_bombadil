@@ -23,13 +23,13 @@ const resetButton = document.getElementById("reset-button");
 const toast = document.getElementById("toast");
 
 const fields = [
-  { id: "first-name", label: "First name", validate: (v) => (v === "" ? "First name is required." : "") },
-  { id: "last-name", label: "Last name", validate: (v) => (v === "" ? "Last name is required." : "") },
-  { id: "email", label: "Email", validate: (v) => {
+  { id: "first-name", validate: (v) => (v === "" ? "First name is required." : "") },
+  { id: "last-name", validate: (v) => (v === "" ? "Last name is required." : "") },
+  { id: "email", validate: (v) => {
       if (v === "") return "Email is required.";
       return EMAIL_PATTERN.test(v) ? "" : "Enter a valid email address.";
     } },
-  { id: "address", label: "Address", validate: (v) => (v === "" ? "Address is required." : "") },
+  { id: "address", validate: (v) => (v === "" ? "Address is required." : "") },
 ];
 
 // Fields the user has interacted with; we only show errors for these.
@@ -60,6 +60,10 @@ function renderAll() {
 }
 
 let toastTimer = null;
+// Counts how many times the toast has appeared. Exposed as data-showing so
+// a test can tell a fresh appearance from one that never went away, even
+// when the toast hides and reappears between two observations.
+let toastShowings = 0;
 
 function showToast(text) {
   toast.textContent = text;
@@ -69,6 +73,8 @@ function showToast(text) {
   // visibility window is at most TOAST_MS long.
   if (toast.hidden) {
     toast.hidden = false;
+    toastShowings += 1;
+    toast.dataset.showing = String(toastShowings);
     if (toastTimer !== null) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       toast.hidden = true;
@@ -88,14 +94,12 @@ fields.forEach((f) => {
   const input = document.getElementById(f.id);
   // Validate live once the user has touched the field, so errors clear as
   // soon as the value becomes valid.
-  input.addEventListener("input", () => {
+  const touchAndRender = () => {
     touched.add(f.id);
     renderField(f.id);
-  });
-  input.addEventListener("blur", () => {
-    touched.add(f.id);
-    renderField(f.id);
-  });
+  };
+  input.addEventListener("input", touchAndRender);
+  input.addEventListener("blur", touchAndRender);
 });
 
 form.addEventListener("submit", (event) => {

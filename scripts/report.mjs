@@ -164,8 +164,8 @@ for (const row of rows) {
   const status = row.code === 0 ? "PASS" : hasViolations ? "FAIL" : "ERROR";
   if (row.code !== 0) {
     totalFailed += 1;
-    if (hasViolations && worstCode < 2) worstCode = 2;
-    if (!hasViolations) worstCode = 1;
+    // 2 (violations) outranks 1 (error): a later error never downgrades it.
+    worstCode = Math.max(worstCode, hasViolations ? 2 : 1);
   }
 
   console.log(

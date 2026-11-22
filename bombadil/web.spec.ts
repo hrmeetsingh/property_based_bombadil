@@ -8,8 +8,17 @@
 //                                      visible while that field is invalid.
 //   3. toastIsTopRight                - whenever the toast is visible it
 //                                      lives in the top-right quadrant.
-//   4. toastEventuallyHides           - guarantee: a visible toast always
-//                                      disappears again (within 8s).
+//   4. toastEventuallyHides           - guarantee: every appearance of
+//                                      the toast ends again (within 8s).
+//   5. validSubmitShowsSuccess        - guarantee: submitting valid data
+//                                      always brings up the success panel
+//                                      and the toast (within 2s).
+//   6. invalidSubmitShowsErrors       - submitting invalid data keeps the
+//                                      form on screen and shows an error
+//                                      for every invalid field.
+//
+// Properties 1-2 say "nothing wrong is shown"; 5-6 say "the right thing is
+// shown". Without both directions a form that never reacts would pass.
 //
 // Plus the browser defaults re-exported below: no uncaught exceptions, no
 // unhandled promise rejections, no console errors, no HTTP 4xx/5xx.
@@ -49,27 +58,26 @@ function isValidValue(id: string, raw: string): boolean {
 
 // --- Custom actions --------------------------------------------------------
 
+type SubmitMode = "valid" | "invalidEmail" | "empty";
+
+const VALID_VALUES: Record<string, string> = {
+  "first-name": "Ada",
+  "last-name": "Lovelace",
+  email: "ada@example.com",
+  address: "12 Turing Lane",
+};
+
+const SUBMIT_VALUES: Record<SubmitMode, Record<string, string>> = {
+  valid: VALID_VALUES,
+  invalidEmail: { ...VALID_VALUES, email: "not-an-email" },
+  empty: { "first-name": "", "last-name": "", email: "", address: "" },
+};
+
 // Fill the four fields with the values for `mode`, then submit.
 const submitWith = registerCustomAction(
   "submitWith",
-  async (document, _window, mode: string) => {
-    const values: Record<string, string> =
-      mode === "valid"
-        ? {
-            "first-name": "Ada",
-            "last-name": "Lovelace",
-            email: "ada@example.com",
-            address: "12 Turing Lane",
-          }
-        : mode === "invalidEmail"
-          ? {
-              "first-name": "Ada",
-              "last-name": "Lovelace",
-              email: "not-an-email",
-              address: "12 Turing Lane",
-            }
-          : { "first-name": "", "last-name": "", email: "", address: "" };
-
+  async (document, _window, mode: SubmitMode) => {
+    const values = SUBMIT_VALUES[mode];
     for (const id of FIELD_IDS) {
       const el = document.getElementById(id) as HTMLInputElement | null;
       if (!el) continue;
@@ -99,10 +107,12 @@ const successVisible = extract(
 
 const toastInfo = extract((state) => {
   const el = state.document.getElementById("toast");
-  if (!el || el.hidden) return { visible: false, top: 0, right: 0, vw: 0, vh: 0 };
+  if (!el || el.hidden) return { visible: false, showing: "", top: 0, right: 0, vw: 0, vh: 0 };
   const rect = el.getBoundingClientRect();
   return {
     visible: true,
+    // Which appearance this is (set by the app on every show).
+    showing: el.dataset.showing ?? "",
     top: rect.top,
     right: rect.right,
     vw: state.window.innerWidth,
@@ -126,6 +136,19 @@ const fieldInfo = extract((state) =>
   }),
 );
 
+// The mode of the submitWith action that produced the current state, or
+// null when the last action was anything else.
+const lastSubmitMode = extract((state): SubmitMode | null => {
+  const action = state.lastAction;
+  if (action === null || typeof action !== "object" || !("Custom" in action)) return null;
+  if (action.Custom.name !== "submitWith") return null;
+  // The 0.8 runtime records the arguments as `arguments`, while the type
+  // definitions call them `args`; accept either.
+  const custom = action.Custom as { args?: unknown[]; arguments?: unknown[] };
+  const args = custom.arguments ?? custom.args ?? [];
+  return (args[0] ?? null) as SubmitMode | null;
+});
+
 // --- Properties ------------------------------------------------------------
 
 // 1. Whenever the success panel is visible, every field holds a value that
@@ -147,12 +170,36 @@ export const toastIsTopRight = always(() => {
   return toast.top >= 0 && toast.top < toast.vh / 2 && toast.right > toast.vw / 2;
 });
 
-// 4. Guarantee: a toast that is visible now always disappears again.
+// 4. Guarantee: every appearance of the toast ends within 8 seconds. The
+//    toast may hide and reappear between two observed states, so "ends"
+//    means hidden *or* replaced by a newer appearance (data-showing).
 export const toastEventuallyHides = always(
-  now(() => toastInfo.current.visible).implies(
-    eventually(() => !toastInfo.current.visible).within(8, "seconds"),
+  now(() => {
+    const toast = toastInfo.current;
+    if (!toast.visible) return true;
+    const showing = toast.showing;
+    return eventually(
+      () => !toastInfo.current.visible || toastInfo.current.showing !== showing,
+    ).within(8, "seconds");
+  }),
+);
+
+// 5. Guarantee: a valid submission always leads to the success panel with
+//    the toast on screen.
+export const validSubmitShowsSuccess = always(
+  now(() => lastSubmitMode.current === "valid").implies(
+    eventually(() => successVisible.current && toastInfo.current.visible).within(2, "seconds"),
   ),
 );
+
+// 6. Right after an invalid submission the form is still on screen and
+//    every invalid field shows its error message.
+export const invalidSubmitShowsErrors = always(() => {
+  const mode = lastSubmitMode.current;
+  if (mode !== "invalidEmail" && mode !== "empty") return true;
+  if (successVisible.current || !formVisible.current) return false;
+  return fieldInfo.current.every((f) => f.valid || f.errorVisible);
+});
 
 // --- Action generators -----------------------------------------------------
 

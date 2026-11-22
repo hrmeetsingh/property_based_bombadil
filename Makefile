@@ -6,7 +6,7 @@
 #   make serve      - just serve the web app on :8080
 #   make clean      - remove traces, logs and the TUI binary
 #
-# Knobs: TIME=30s HEADLESS=0 PORT=8080
+# Knobs: TIME=30s HEADLESS=0 PORT=8080 QUIESCENCE_MS=50
 
 SHELL := /bin/bash
 
@@ -22,18 +22,19 @@ export PORT
 
 all: test
 
-test: build
+# The test targets build through run-tests.sh (ensure_deps), so there is a
+# single build path; `make build` runs just that step.
+test:
 	./scripts/run-tests.sh all
 
-test-web: build
+test-web:
 	./scripts/run-tests.sh web
 
-test-tui: build
+test-tui:
 	./scripts/run-tests.sh tui
 
 build:
-	@if [ ! -x node_modules/.bin/bombadil ]; then npm install --no-fund --no-audit; fi
-	go -C tui build -o bin/bmbdl .
+	./scripts/run-tests.sh build
 
 serve:
 	node scripts/serve.mjs

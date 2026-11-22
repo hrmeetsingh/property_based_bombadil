@@ -14,7 +14,15 @@
 //   5. axisMarkerMatchesSelection - the bracketed x-axis label always marks
 //                                   the same day as the status line.
 //   6. dottedLineAtSelectedColumn - the vertical dotted line always sits at
-//                                   the x-axis column of the selected day.
+//                                   the x-axis column of the selected day
+//                                   and runs unbroken from the x-axis up to
+//                                   the highlighted point "*".
+//   7. keysMoveSelection          - h/left selects the previous day, l/right
+//                                   the next one (clamped at the ends), and
+//                                   any other key leaves the selection alone.
+//
+// Properties 2-6 say "what is shown is consistent"; 7 says "the keys do
+// what they promise". Without 7 an app that ignored every key would pass.
 //
 // Plus the terminal defaults re-exported below: exitSuccess (the app never
 // crashes with a non-zero exit code) and noReplacementChars (no malformed
@@ -51,22 +59,32 @@ const gridSize = extract((state) => ({
   cols: state.grid.size.columns,
 }));
 
-// "Day: 07/30" from the status line (row 1 in a rendered frame).
-const dayInfo = screenRows.map((rows) => {
+// The first regex match on any row, or null when no row matches.
+function firstMatch(rows: string[], re: RegExp): RegExpMatchArray | null {
   for (const row of rows) {
-    const m = row.match(/Day:\s*(\d+)\/(\d+)/);
-    if (m) return { day: Number(m[1]), total: Number(m[2]) };
+    const m = row.match(re);
+    if (m) return m;
   }
   return null;
+}
+
+// "Day: 07/30" from the status line (row 1 in a rendered frame).
+const dayInfo = screenRows.map((rows) => {
+  const m = firstMatch(rows, /Day:\s*(\d+)\/(\d+)/);
+  return m ? { day: Number(m[1]), total: Number(m[2]) } : null;
 });
 
 // "Close: $149.40" from the status line.
 const closeInfo = screenRows.map((rows) => {
-  for (const row of rows) {
-    const m = row.match(/Close:\s*\$(\d+\.\d{2})/);
-    if (m) return Number(m[1]);
-  }
-  return null;
+  const m = firstMatch(rows, /Close:\s*\$(\d+\.\d{2})/);
+  return m ? Number(m[1]) : null;
+});
+
+// The keystroke that produced the current state, or null.
+const lastKey = extract((state) => {
+  const action = state.lastAction;
+  if (action === null || !("TypeText" in action)) return null;
+  return action.TypeText;
 });
 
 // The bracketed selected-day label on the last row (the x-axis).
@@ -140,15 +158,45 @@ export const axisMarkerMatchesSelection = always(() => {
 });
 
 // 6. The vertical dotted line sits exactly at the x-axis column of the
-//    selected day: column = round(day * (cols - 1) / (DAYS - 1)).
+//    selected day: column = round(day * (cols - 1) / (DAYS - 1)), and it
+//    runs unbroken from the x-axis row up to the "*" point in that column.
 export const dottedLineAtSelectedColumn = always(() => {
   const day = dayInfo.current?.day;
   const cols = dottedColumns.current;
   if (day === undefined) return true;
   if (cols.length === 0) return true; // degenerate terminal, no plot
   const expected = Math.round((day * (gridSize.current.cols - 1)) / (DAYS - 1));
-  return cols.length === 1 && cols[0] === expected;
+  if (cols.length !== 1 || cols[0] !== expected) return false;
+
+  const rows = screenRows.current;
+  const axisRow = rows.length - 2;
+  const pointRow = rows.findIndex((row, i) => i >= 2 && row[expected] === "*");
+  if (pointRow === -1 || pointRow >= axisRow) return false;
+  for (let r = pointRow + 1; r <= axisRow; r++) {
+    if (rows[r][expected] !== ":") return false;
+  }
+  return true;
 });
+
+// 7. State machine over keystrokes: the key that produced the next state
+//    decides where the selection must be.
+const LEFT_KEYS = ["h", "\u001b[D"];
+const RIGHT_KEYS = ["l", "\u001b[C"];
+
+export const keysMoveSelection = always(
+  now(() => {
+    const current = dayInfo.current?.day;
+    if (current === undefined) return true; // before the first render
+    return next(() => {
+      const following = dayInfo.current?.day;
+      const key = lastKey.current;
+      if (following === undefined || key === null) return true;
+      if (LEFT_KEYS.includes(key)) return following === Math.max(current - 1, 0);
+      if (RIGHT_KEYS.includes(key)) return following === Math.min(current + 1, DAYS - 1);
+      return following === current;
+    });
+  }),
+);
 
 // --- Action generators -----------------------------------------------------
 

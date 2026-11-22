@@ -5,6 +5,7 @@
 #   scripts/run-tests.sh          # run web + TUI, combined report
 #   scripts/run-tests.sh web      # run only the web suite
 #   scripts/run-tests.sh tui      # run only the TUI suite
+#   scripts/run-tests.sh build    # install deps and build the TUI, no tests
 #
 # Environment knobs:
 #   TIME_LIMIT=30s   how long each suite explores (bombadil time-limit syntax)
@@ -112,6 +113,10 @@ test_tui() {
 }
 
 case "$MODE" in
+  build)
+    ensure_deps
+    exit 0
+    ;;
   web)
     ensure_deps
     start_server || exit 1
@@ -128,7 +133,7 @@ case "$MODE" in
     test_tui
     ;;
   *)
-    echo "usage: $0 [web|tui|all]" >&2
+    echo "usage: $0 [web|tui|all|build]" >&2
     exit 1
     ;;
 esac

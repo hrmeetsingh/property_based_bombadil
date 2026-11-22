@@ -154,11 +154,13 @@ app). Actions are randomized with weights, so every run explores differently.
 | `successRequiresValidData` | Whenever the success panel is visible, **every field holds a valid value** (spec-side validation contract, independent of the implementation). |
 | `errorsOnlyShownForInvalidFields` | A visible field-error message **implies that field is currently invalid**. |
 | `toastIsTopRight` | Whenever the toast is visible, it sits in the **top-right quadrant** of the viewport. |
-| `toastEventuallyHides` | **Guarantee:** a visible toast always disappears again (within 8s). |
+| `toastEventuallyHides` | **Guarantee:** every appearance of the toast ends within 8s — it hides, or is replaced by a newer appearance (the app numbers each one in `data-showing`, so a hide-and-reshow between two observed states is not mistaken for one long showing). |
+| `validSubmitShowsSuccess` | **Guarantee:** after `submitWith("valid")`, the success panel and the toast appear (within 2s). |
+| `invalidSubmitShowsErrors` | Right after an invalid submission the form stays on screen and **every invalid field shows its error**. |
 | `noUncaughtExceptions` *(default)* | No uncaught JS exceptions during exploration. |
 | `noUnhandledPromiseRejections` *(default)* | No unhandled promise rejections. |
 | `noConsoleErrors` *(default)* | No `console.error` output. |
-| `noHttpErrorCodes` *(default)* | No HTTP 4xx/5xx responses (the static server only ever serves 200s). |
+| `noHttpErrorCodes` *(default)* | No HTTP 4xx/5xx responses (the static server answers 200 for every app file; it only returns 403/404 for paths outside `web/` or missing files, which the app never requests). |
 
 Actions: Bombadil's default **click / type / scroll** generators, plus two
 custom actions that drive the interesting flows directly —
@@ -177,7 +179,8 @@ ever hiding the toast itself.)
 | `dayMovesOneStepAtATime` | **State machine:** between two consecutive states the selection may stay, move `+1`, or move `-1` — never jump. |
 | `priceAlwaysMatchesSelection` | The `Close:` price shown **always equals `stock.json[day]`** (down to the cent). |
 | `axisMarkerMatchesSelection` | The bracketed x-axis label always marks the same day as the status line. |
-| `dottedLineAtSelectedColumn` | The vertical dotted line always sits at the x-axis column `round(day × (cols-1) / 29)` of the selected day. |
+| `dottedLineAtSelectedColumn` | The vertical dotted line always sits at the x-axis column `round(day × (cols-1) / 29)` of the selected day and runs unbroken from the x-axis up to the `*` point. |
+| `keysMoveSelection` | **State machine:** `h`/← selects the previous day, `l`/→ the next (clamped at the ends); any other key leaves the selection unchanged. |
 | `exitSuccess` *(default)* | The app never dies with a non-zero exit code (a crash/panic = violation). |
 | `noReplacementChars` *(default)* | The app never emits malformed UTF-8. |
 
@@ -221,12 +224,13 @@ make clean                                                           # remove tr
 The branch **`failing-demo`** keeps both apps compiling and runnable but
 breaks their invariants on purpose:
 
-- **web:** email validation is loosened (any string containing `@` passes)
+- **web:** the email pattern check is dropped (any non-empty email passes)
   → the success panel can appear with an invalid email
-  → `successRequiresValidData` fails. The toast moves to the bottom-left and
+  → `successRequiresValidData` and `invalidSubmitShowsErrors` fail. The toast moves to the bottom-left and
   stops auto-dismissing → `toastIsTopRight` and `toastEventuallyHides` fail.
 - **tui:** the right-arrow key advances **two** days →
-  `dayMovesOneStepAtATime` fails; the price line renders the wrong column →
+  `dayMovesOneStepAtATime` and `keysMoveSelection` fail; the dotted line is
+  drawn one column to the right of the selected day →
   `dottedLineAtSelectedColumn` fails; the status line shows a different
   price than the dataset → `priceAlwaysMatchesSelection` fails.
 
@@ -307,4 +311,4 @@ new stories forever.
 - Development happens on `main` (green) and `failing-demo` (red), with
   incremental commits on both.
 - The configured remote is `https://github.com/hrmeetsingh/property_based_bombadil`
-  — **nothing is pushed**; everything stays local.
+  — the `failing-demo` branch is kept local only.
