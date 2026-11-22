@@ -492,6 +492,20 @@ $B terminal shrink --trace traces/tui-<stamp>.bin --property keysMoveSelection \
    --specification bombadil/tui.spec.ts --quiescence-timeout-ms 50 -- ./tui/bin/bmbdl
 ```
 
+On `failing-demo` this takes a 30-second random run (hundreds of
+keystrokes) down to the smallest possible story, a single `l`:
+
+```text
+  Reproduced: 3/3 (original: 3/3)
+Shrunk trace written to: /tmp/…/shrunk.bin
+
+$ bombadil trace /tmp/…/shrunk.bin
+#0        +0.000s  (initial state)  (5.1 KB payload)
+       violated: "priceAlwaysMatchesSelection", "dottedLineAtSelectedColumn"
+#1        +0.067s  TypeText {"text":"l"}  (5.1 KB payload)
+       violated: "dayMovesOneStepAtATime", "priceAlwaysMatchesSelection", "dottedLineAtSelectedColumn", "keysMoveSelection"
+```
+
 (`bombadil browser shrink --trace <trace> --property <name> <url> <spec>`
 works the same for the web app.)
 
