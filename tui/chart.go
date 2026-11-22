@@ -28,18 +28,18 @@ const (
 
 // Glyphs drawn on the chart.
 const (
-	PointGlyph    = '•' // a day's closing price
-	MarkerGlyph   = '●' // the selected day's closing price
-	DottedGlyph   = '┊' // dotted line from the x-axis up to the marker
-	FlatGlyph     = '─'
-	UpGlyph       = '╱'
-	DownGlyph     = '╲'
-	AxisGlyph     = '─'
-	TickGlyph     = '┴'
-	CornerGlyph   = '└'
-	YAxisGlyph    = '│'
-	YLabelGlyph   = '┤'
-	EmptyGlyph    = ' '
+	PointGlyph  = '•' // a day's closing price
+	MarkerGlyph = '●' // the selected day's closing price
+	DottedGlyph = '┊' // dotted line from the x-axis up to the marker
+	FlatGlyph   = '─'
+	UpGlyph     = '╱'
+	DownGlyph   = '╲'
+	AxisGlyph   = '─'
+	TickGlyph   = '┴'
+	CornerGlyph = '└'
+	YAxisGlyph  = '│'
+	YLabelGlyph = '┤'
+	EmptyGlyph  = ' '
 )
 
 // Cell highlight kinds.
