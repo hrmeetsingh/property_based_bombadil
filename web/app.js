@@ -27,7 +27,8 @@ function nameError(label, value) {
 
 const validators = {
   firstName: (value) => nameError("First name", value),
-  lastName: (value) => nameError("Last name", value),
+  // Last names come in every shape, so only require one.
+  lastName: (value) => (value.trim() === "" ? "Last name is required." : null),
   email: (value) => {
     const v = value.trim();
     if (v === "") return "Email is required.";
