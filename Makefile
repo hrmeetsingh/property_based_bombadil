@@ -32,7 +32,7 @@ $(TUI_BIN): $(TUI_SRC)
 	@mkdir -p bin
 	cd tui && go build -o ../$(TUI_BIN) .
 
-run-web: ## Serve the web form at http://127.0.0.1:$(WEB_PORT)/
+run-web: ## Serve the web form (port WEB_PORT, default 5173)
 	PORT=$(WEB_PORT) node web/server.mjs
 
 run-tui: $(TUI_BIN) ## Run the TUI (q to quit)
