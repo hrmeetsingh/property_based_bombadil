@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Join Acme · Onboarding</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <h1>Create your Acme account</h1>
+        <p class="lead">Tell us a little about yourself. All fields are required.</p>
+      </header>
+
+      <form id="onboarding" novalidate>
+        <div class="row">
+          <div class="field">
+            <label for="firstName">First name</label>
+            <input id="firstName" name="firstName" type="text" autocomplete="given-name" aria-describedby="firstName-error" />
+            <p id="firstName-error" class="field-error" hidden></p>
+          </div>
+          <div class="field">
+            <label for="lastName">Last name</label>
+            <input id="lastName" name="lastName" type="text" autocomplete="family-name" aria-describedby="lastName-error" />
+            <p id="lastName-error" class="field-error" hidden></p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" aria-describedby="email-error" />
+          <p id="email-error" class="field-error" hidden></p>
+        </div>
+
+        <div class="field">
+          <label for="address">Address</label>
+          <input id="address" name="address" type="text" autocomplete="street-address" aria-describedby="address-error" />
+          <p id="address-error" class="field-error" hidden></p>
+        </div>
+
+        <button id="submit" type="submit">Create account</button>
+      </form>
+
+      <section id="success" class="success" role="status" hidden>
+        <h2 id="success-title"></h2>
+        <dl>
+          <dt>First name</dt><dd data-field="firstName"></dd>
+          <dt>Last name</dt><dd data-field="lastName"></dd>
+          <dt>Email</dt><dd data-field="email"></dd>
+          <dt>Address</dt><dd data-field="address"></dd>
+        </dl>
+      </section>
+    </main>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
