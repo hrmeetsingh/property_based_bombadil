@@ -1,0 +1,13 @@
+{
+  "name": "property-based-bombadil",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Property-based testing of a web form and a Go TUI with Bombadil",
+  "type": "module",
+  "scripts": {
+    "test": "make test"
+  },
+  "devDependencies": {
+    "@antithesishq/bombadil": "0.8.0"
+  }
+}

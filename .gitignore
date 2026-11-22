@@ -1,0 +1,4 @@
+node_modules/
+results/
+bin/
+.DS_Store
