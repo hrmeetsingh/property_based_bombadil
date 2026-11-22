@@ -48,6 +48,7 @@ const form = document.getElementById("onboarding");
 const success = document.getElementById("success");
 const toasts = document.getElementById("toasts");
 let submissions = 0;
+let dismissTimer;
 
 const input = (name) => document.getElementById(name);
 
@@ -74,8 +75,9 @@ function showToast(message) {
   toast.textContent = message;
   toasts.appendChild(toast);
   while (toasts.children.length > MAX_TOASTS) toasts.firstElementChild.remove();
-  // The countdown starts when the toast appears, so every toast goes away.
-  setTimeout(() => toast.remove(), TOAST_MILLIS);
+  // Restart the dismiss countdown for the newest toast.
+  clearTimeout(dismissTimer);
+  dismissTimer = setTimeout(() => toast.remove(), TOAST_MILLIS);
 }
 
 function showSuccess(values) {
