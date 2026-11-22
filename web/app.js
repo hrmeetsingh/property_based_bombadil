@@ -13,6 +13,7 @@
 "use strict";
 
 const TOAST_MILLIS = 3000;
+const MAX_TOASTS = 3; // keeps the stack inside the top-right corner
 const NAME_PATTERN = /^\p{L}[\p{L}' -]*$/u;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -72,6 +73,7 @@ function showToast(message) {
   toast.dataset.toastId = String(submissions);
   toast.textContent = message;
   toasts.appendChild(toast);
+  while (toasts.children.length > MAX_TOASTS) toasts.firstElementChild.remove();
   // The countdown starts when the toast appears, so every toast goes away.
   setTimeout(() => toast.remove(), TOAST_MILLIS);
 }

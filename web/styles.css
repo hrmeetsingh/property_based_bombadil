@@ -79,4 +79,8 @@ button:hover { background: #2f5cc2; }
   background: #1b5e20;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+  /* One line per toast, so a long email can't make the stack grow down. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
