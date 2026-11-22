@@ -17,7 +17,7 @@ presses, weird sequences of actions — checking the invariants as it goes.
 
 ## Quick start
 
-Prerequisites: **Node 20+**, **Go 1.24+**, **make**, **Google Chrome**
+Prerequisites: **Node 20+**, **Go 1.25+** (see `tui/go.mod`), **make**, **Google Chrome**
 (for the browser driver).
 
 ```sh
@@ -68,24 +68,42 @@ after every interesting event, and checks every exported property against
 each state. When a property breaks, the trace records the exact sequence of
 actions that led there (`bombadil trace <file> --screen`, `--reproduce`).
 
-Properties are written in TypeScript using temporal operators:
+Properties are written in TypeScript with a handful of *temporal
+operators*. Read them out loud and they are plain English:
+
+| Operator | Reads as | Used in |
+| --- | --- | --- |
+| `extract(fn)` | "a value read from the app state" | `dayInfo`, `toastInfo`, `fieldInfo` |
+| `.current` | "…that value in the state being checked" | every property |
+| `always(p)` | "in **every** state, p" | all properties |
+| `now(p)` | "in **this** state, p" | `titleAlwaysVisible` |
+| `next(p)` | "in the state **right after** this one, p" | `dayMovesOneStepAtATime`, `keysMoveSelection` |
+| `eventually(p).within(n, unit)` | "within n units **from now**, p" | `toastEventuallyHides`, `validSubmitShowsSuccess` |
+| `a.implies(b)` / `a.or(b)` | "if a then b" / "a or b" | `validSubmitShowsSuccess` / `titleAlwaysVisible` |
+
+The simplest kind is an *invariant* — a check on one state:
 
 ```ts
-// "In every state ..." - an invariant
+// "In every state, a visible error implies that field is invalid."
 export const errorsOnlyShownForInvalidFields = always(() =>
   fieldInfo.current.every((f) => !f.errorVisible || !f.valid),
 );
+```
 
-// "... and a visible toast always disappears again" - a guarantee
-export const toastEventuallyHides = always(
-  now(() => toastInfo.current.visible).implies(
-    eventually(() => !toastInfo.current.visible).within(8, "seconds"),
+A *guarantee* looks forward in time:
+
+```ts
+// "In every state: if the last action was a valid submit, then within
+//  2 seconds the success panel and the toast are on screen."
+export const validSubmitShowsSuccess = always(
+  now(() => lastSubmitMode.current === "valid").implies(
+    eventually(() => successVisible.current && toastInfo.current.visible).within(2, "seconds"),
   ),
 );
-
-// "The selection only ever moves one day at a time" - a state machine
-export const dayMovesOneStepAtATime = always(/* current day vs. next day */);
 ```
+
+[Worked examples](#worked-examples) below walks through a two-state
+property line by line.
 
 ---
 
@@ -93,6 +111,7 @@ export const dayMovesOneStepAtATime = always(/* current day vs. next day */);
 
 ```
 ├── Makefile                 # orchestration entry points
+├── project_setup.prompt.md  # the original brief this repo was built from
 ├── package.json             # devDependency: @antithesishq/bombadil
 ├── web/                     # static app (no build step)
 │   ├── index.html           #   form + success panel + toast
@@ -120,7 +139,10 @@ are shown only for *touched & invalid* fields and clear as soon as the value
 becomes valid. Submitting valid values hides the form, shows the success
 panel and raises a toast that auto-dismisses 5 seconds after it appears
 (re-showing an already-visible toast keeps the original deadline, so
-overlapping notifications can never pin it on screen). Submitting invalid
+overlapping notifications can never pin it on screen). Each appearance is
+numbered in the toast's `data-showing` attribute, so the spec can tell a
+fresh appearance from one that never went away (see
+[Properties only see observed states](#properties-only-see-observed-states)). Submitting invalid
 values keeps the form up and marks the offending fields.
 
 **TUI app** — `tui/main.go` renders each frame into a full terminal-sized
@@ -192,6 +214,134 @@ immediately (it remains part of the manual flow).
 
 ---
 
+## Worked examples
+
+### 1. The same rule, tested both ways
+
+The rule: *the form only accepts a valid email*. An example-based test
+picks one input and checks one outcome:
+
+```text
+fill first-name = "Ada", last-name = "Lovelace",
+     email = "ada@example.com", address = "12 Turing Lane"
+click Submit
+expect the success panel to be visible            ✔ passes
+```
+
+Run that against the [`failing-demo`](#the-failing-branch) branch and it
+**still passes**: on that branch the email check is gone, but a valid
+email was never going to show it. The test only checks the input someone
+thought of.
+
+The property states the rule itself, for whatever is in the fields:
+
+```ts
+export const successRequiresValidData = always(() => {
+  if (!successVisible.current) return true;
+  return fieldInfo.current.every((f) => f.valid);
+});
+```
+
+Bombadil tries `submitWith("invalidEmail")` (which fills in `not-an-email`)
+plus random typing, so on `failing-demo` the report goes red within seconds:
+`successRequiresValidData` and `invalidSubmitShowsErrors` are both violated.
+
+### 2. A property read line by line
+
+`keysMoveSelection` (in `bombadil/tui.spec.ts`) says what the keys must do:
+
+```ts
+const LEFT_KEYS = ["h", "\u001b[D"];            // h and the ← escape sequence
+const RIGHT_KEYS = ["l", "\u001b[C"];           // l and the → escape sequence
+
+export const keysMoveSelection = always(        // in every state …
+  now(() => {
+    const current = dayInfo.current?.day;       // … take the selected day now
+    if (current === undefined) return true;     //   (nothing rendered yet: skip)
+    return next(() => {                         // … and in the very next state
+      const following = dayInfo.current?.day;   //   the day shown then
+      const key = lastKey.current;              //   the key that caused it
+      if (following === undefined || key === null) return true;
+      if (LEFT_KEYS.includes(key)) return following === Math.max(current - 1, 0);
+      if (RIGHT_KEYS.includes(key)) return following === Math.min(current + 1, DAYS - 1);
+      return following === current;             //   any other key: no change
+    });
+  }),
+);
+```
+
+- `dayInfo` and `lastKey` are **extractors**: `dayInfo` parses
+  `Day: 07/30` off the screen, and `lastKey` reads the keystroke from
+  `state.lastAction`.
+- `now(() => …)` runs in one state and captures `current`. The `next`
+  inside it is then checked against the **following** state, so one
+  property compares two states.
+- Every action is exactly one key (see the TUI action generators), so "the
+  key that caused this state" is well defined.
+
+### 3. Break it yourself
+
+Make one of these one-line changes, run the suite, and watch which property
+catches it. Each row was checked with `make test-tui` / `make test-web
+TIME=20s`. Undo with `git checkout -- tui web`.
+
+| Change | File | Caught by |
+| --- | --- | --- |
+| `case "left", "h":` → `case "left":` (h does nothing) | `tui/main.go` | `keysMoveSelection` |
+| Remove the `if m.selected > 0` clamp around `m.selected--` | `tui/main.go` | `exitSuccess` (default): the app panics at day -1 on the first `h` |
+| `m.selected--` → `m.selected -= 2` | `tui/main.go` | `exitSuccess` (default): from day 1 it jumps to -1 and panics |
+| Email check → `return "";` | `web/app.js` | `successRequiresValidData`, `invalidSubmitShowsErrors` |
+| Delete the toast `setTimeout(…)` | `web/app.js` | `toastEventuallyHides` |
+| `if (valid) showSuccess();` → `if (valid) {}` | `web/app.js` | `validSubmitShowsSuccess` |
+
+Notice the two crash rows: you didn't write a "doesn't crash" property, but
+the defaults re-exported at the top of each spec (`exitSuccess`,
+`noUncaughtExceptions`, …) catch whole kinds of bugs for free.
+
+---
+
+## Writing good properties
+
+### Check both directions
+
+`successRequiresValidData` says *success ⇒ valid data*. A form that
+**never** shows success passes it, and so does a TUI that ignores every
+key when checked only by `dayMovesOneStepAtATime` ("moves at most one
+step"). Each "nothing wrong is shown" property needs a partner that says
+"the right thing is shown":
+
+| Safety ("nothing bad") | Liveness ("something good") |
+| --- | --- |
+| `successRequiresValidData` | `validSubmitShowsSuccess` |
+| `errorsOnlyShownForInvalidFields` | `invalidSubmitShowsErrors` |
+| `dayMovesOneStepAtATime` | `keysMoveSelection` |
+
+The "Break it yourself" row `if (valid) {}` is caught **only** by the
+liveness side.
+
+### Properties only see observed states
+
+Bombadil checks properties against the states it **captures**, roughly one
+after each action. Something that happens and un-happens between two
+captures is invisible to it. This bit the toast guarantee: the toast's 5 s
+timer hid it, a `submitWith("valid")` a few milliseconds later showed it
+again, no state was captured in between, and the spec saw one toast
+visible for more than 8 s, a violation the app never committed.
+
+The fix was to make the event observable rather than to loosen the
+property: the app numbers each appearance in `data-showing`, and
+`toastEventuallyHides` counts *hidden **or** a newer appearance* as "this
+showing ended".
+
+### Keep the spec independent of the app
+
+`bombadil/web.spec.ts` restates the email rule (`EMAIL_RE`) instead of
+importing it from `web/app.js`. If the spec reused the app's code, a bug
+in that code would be a bug in the test too, and the test would agree with
+it.
+
+---
+
 ## Running the tests
 
 | Goal | Command |
@@ -199,6 +349,7 @@ immediately (it remains part of the manual flow).
 | Both suites, combined report | `make test` |
 | Web app only | `make test-web` |
 | TUI only | `make test-tui` |
+| Install deps and build the TUI, no tests | `make build` |
 | Longer exploration (e.g. 2 minutes per app) | `make test TIME=2m` |
 | Watch Chrome while testing | `make test-web HEADLESS=0` |
 
@@ -209,13 +360,152 @@ runs each suite with its own trace + log, and hands the results to
 follow Bombadil: `0` green, `2` violations, `1` error — so `make test`
 fails the build when any suite is red.
 
-Artifacts per run land in `traces/`:
+Every run leaves a binary trace and a log in `traces/`. The next section
+explains how to read them.
+
+---
+
+## How Bombadil traces work
+
+### What a trace records
+
+`scripts/run-tests.sh` passes `--output-path traces/<suite>-<stamp>.bin`, so
+every run writes one trace file. It holds **every state** Bombadil captured,
+and each state records:
+
+- its index (`#0`, `#1`, …) and time since the start;
+- the **action** that produced it (`TypeText`, `Click`, `Custom submitWith`, …);
+- the page URL (browser traces);
+- the properties **violated** in that state;
+- a snapshot of **every `extract` value** in the spec, under its variable name
+  (`dayInfo`, `lastKey`, `toastInfo`, `fieldInfo`, …), which is exactly what
+  the properties saw;
+- the terminal **screen** (TUI) or a **screenshot** (browser).
+
+The matching `traces/logs/<suite>-<stamp>.log` holds the actions and the
+human-readable violation messages.
+
+### Reading a trace
 
 ```sh
-./node_modules/.bin/bombadil trace traces/web-<stamp>.bin --screen   # replay states in the terminal
-./node_modules/.bin/bombadil trace traces/tui-<stamp>.bin --state 40..60
-make clean                                                           # remove traces/logs/binary
+B=./node_modules/.bin/bombadil
+
+$B trace traces/tui-<stamp>.bin                    # one line per state: action + violations
+$B trace traces/tui-<stamp>.bin --state 40..50     # a range (also 40.. or ..50)
+$B trace traces/tui-<stamp>.bin --screen           # + the terminal screen of each state
+$B trace traces/tui-<stamp>.bin --color            # + colors and styles
+$B trace traces/web-<stamp>.bin --screenshots shots/   # browser: one PNG per state
+$B browser inspect traces/web-<stamp>.bin          # browser: open the interactive viewer
 ```
+
+Real output from a `failing-demo` TUI run:
+
+```text
+terminal trace
+#0        +0.000s  (initial state)  (5.1 KB payload)
+       violated: "dottedLineAtSelectedColumn", "priceAlwaysMatchesSelection"
+#1        +0.081s  TypeText {"text":"l"}  (5.1 KB payload)
+       violated: "dottedLineAtSelectedColumn", "dayMovesOneStepAtATime", "keysMoveSelection", "priceAlwaysMatchesSelection"
+#2        +0.164s  TypeText {"text":"h"}  (5.1 KB payload)
+       violated: "dottedLineAtSelectedColumn", "priceAlwaysMatchesSelection"
+```
+
+and from a browser run, where custom actions show up by name:
+
+```text
+#3        +0.073s  Custom {"name":"submitWith","arguments":["invalidEmail"]}  (18.9 KB payload)
+       url: "http://localhost:8080/"
+       violated: "successRequiresValidData", "invalidSubmitShowsErrors", "toastIsTopRight"
+```
+
+For scripting, `--json` prints one object per state. The per-state data
+lives under `metadata` (`action`, `violations`, `snapshots`). To find the
+first violating state:
+
+```sh
+$B trace traces/tui-<stamp>.bin --json | python3 -c '
+import sys, json
+for line in sys.stdin:
+    s = json.loads(line)
+    if s["metadata"]["violations"]:
+        print(s["index"], [v["name"] for v in s["metadata"]["violations"]]); break'
+```
+
+### A real failure, step by step
+
+On `failing-demo` the TUI's right key advances two days. State `#1` above
+is the first `l` press. Its screen (`--screen --state 1..2`):
+
+```text
+#1        +0.081s  TypeText {"text":"l"}  (5.1 KB payload)
+       | BMBDL - Mock Stock Performance
+       | Day: 02/30  Close: $141.85
+```
+
+and the log explains the `keysMoveSelection` violation, showing the
+extractor values it saw:
+
+```text
+keysMoveSelection was violated:
+
+as of 00:01.101, it should always be the case that:
+  () => { const current = dayInfo.current?.day; … return next(() => { … }) }
+
+however at 00:01.182:
+
+dayInfo =
+  day: 2.0
+  total: 30.0
+lastKey = l
+```
+
+Read it as: *in the state before, the day was 0; then `l` was pressed; in
+the next state the day is 2, but `l` must give `min(0 + 1, 29) = 1`*. The
+trace gave you the input (one `l` from day 0), the expected value, the
+actual value and the screen, without anyone writing that test case.
+
+### Replaying and shrinking
+
+A trace stores the actions, so a run can be **replayed** against the
+(fixed or still broken) app:
+
+```sh
+# TUI
+$B terminal test --specification bombadil/tui.spec.ts --quiescence-timeout-ms 50 \
+   --reproduce traces/tui-<stamp>.bin -- ./tui/bin/bmbdl
+
+# web (needs the server: `make serve` in another shell)
+$B browser test --headless --reproduce traces/web-<stamp>.bin \
+   http://localhost:8080/ bombadil/web.spec.ts
+```
+
+Replay is **best-effort**: it fails if the app diverges from the recording
+(timing-sensitive states like the toast can differ). In the browser,
+`--reproduce` cannot be combined with `--time-limit`.
+
+A random run can take hundreds of actions to hit a bug. **Shrinking**
+(experimental) searches for a shorter action sequence that still
+violates the property:
+
+```sh
+$B terminal shrink --trace traces/tui-<stamp>.bin --property keysMoveSelection \
+   --specification bombadil/tui.spec.ts --quiescence-timeout-ms 50 -- ./tui/bin/bmbdl
+```
+
+(`bombadil browser shrink --trace <trace> --property <name> <url> <spec>`
+works the same for the web app.)
+
+### Things that differ from what you'd expect
+
+- The trace prints a keystroke as `TypeText {"text":"l"}`, but inside a spec
+  `state.lastAction.TypeText` is just the string `"l"`. The `lastKey`
+  snapshot in the trace shows that runtime value.
+- At runtime (Bombadil 0.8) a custom action's arguments are in
+  `lastAction.Custom.arguments`, while the TypeScript types call them
+  `args`. `bombadil/web.spec.ts` reads both; see `lastSubmitMode`.
+- Traces are big (a few hundred MB after a day of runs). They are
+  gitignored; `make clean` removes them along with the logs and the TUI
+  binary.
 
 ---
 
@@ -226,8 +516,9 @@ breaks their invariants on purpose:
 
 - **web:** the email pattern check is dropped (any non-empty email passes)
   → the success panel can appear with an invalid email
-  → `successRequiresValidData` and `invalidSubmitShowsErrors` fail. The toast moves to the bottom-left and
-  stops auto-dismissing → `toastIsTopRight` and `toastEventuallyHides` fail.
+  → `successRequiresValidData` and `invalidSubmitShowsErrors` fail.
+  The toast moves to the bottom-left and stops auto-dismissing
+  → `toastIsTopRight` and `toastEventuallyHides` fail.
 - **tui:** the right-arrow key advances **two** days →
   `dayMovesOneStepAtATime` and `keysMoveSelection` fail; the dotted line is
   drawn one column to the right of the selected day →
@@ -250,30 +541,26 @@ Expected report on that branch:
  ------------------------------------------------------------------------------
  web (browser)     FAIL                ...        30s  traces/web-....bin
                    violated properties:
+                     - invalidSubmitShowsErrors (x...)
                      - successRequiresValidData (x...)
-                     - toastIsTopRight (x...)
                      - toastEventuallyHides (x...)
+                     - toastIsTopRight (x...)
  tui (terminal)    FAIL                ...        30s  traces/tui-....bin
                    violated properties:
                      - dayMovesOneStepAtATime (x...)
-                     - priceAlwaysMatchesSelection (x...)
                      - dottedLineAtSelectedColumn (x...)
+                     - keysMoveSelection (x...)
+                     - priceAlwaysMatchesSelection (x...)
  OVERALL: FAIL (0/2 suites green)
 ```
 
 ### Fixing it: property-based vs. example-based testing
 
-On `failing-demo`, run one suite and follow the report — for the TUI:
-
-```sh
-make test-tui
-./node_modules/.bin/bombadil trace traces/tui-<stamp>.bin --screen | less
-```
-
-Each violating state shows the property name and the screen *as the property
-saw it*; the actions on the left of each state are the reproduction steps
-(`bombadil terminal test --reproduce <trace> -- ./tui/bin/bmbdl` replays
-them exactly).
+On `failing-demo`, run one suite and follow the report (for the TUI,
+`make test-tui`). Then open the trace as described in
+[How Bombadil traces work](#how-bombadil-traces-work): each violating state
+shows the property name, the screen *as the property saw it*, and the
+actions that led there, which you can replay with `--reproduce`.
 
 Now compare the two styles of fixing:
 
@@ -311,4 +598,4 @@ new stories forever.
 - Development happens on `main` (green) and `failing-demo` (red), with
   incremental commits on both.
 - The configured remote is `https://github.com/hrmeetsingh/property_based_bombadil`
-  — the `failing-demo` branch is kept local only.
+  — `failing-demo` is a demonstration branch: never merge it into `main`.
