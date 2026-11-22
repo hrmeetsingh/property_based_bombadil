@@ -120,10 +120,10 @@ export const statusMatchesData = always(() => {
   const lines = screen.current;
   if (!ready(lines)) return true;
   const s = status(lines);
-  const expected = s ? days[s.day - 1] : undefined;
+  if (s === null) return false; // the status line must always be there
+  const expected = days[s.day - 1];
+  if (expected === undefined) return true; // reported by selectionInRange
   return (
-    s !== null &&
-    expected !== undefined &&
     s.date === expected.date &&
     s.price === expected.price.toFixed(2)
   );
@@ -150,7 +150,7 @@ export const markerOnSelectedDay = always(() => {
   const lines = screen.current;
   if (!ready(lines)) return true;
   const day = selectedDay.current;
-  if (day === null || day < 1 || day > DAY_COUNT) return false;
+  if (day === null || day < 1 || day > DAY_COUNT) return true; // reported by selectionInRange
   const markers = findGlyph(lines, MARKER);
   return (
     markers.length === 1 &&
@@ -168,7 +168,7 @@ export const dottedLineTouchesPoint = always(() => {
   const lines = screen.current;
   if (!ready(lines)) return true;
   const day = selectedDay.current;
-  if (day === null || day < 1 || day > DAY_COUNT) return false;
+  if (day === null || day < 1 || day > DAY_COUNT) return true; // reported by selectionInRange
   const col = dayCol(day);
   const top = priceRow(days[day - 1].price) + 1; // just below the marker
   const expected = AXIS_ROW - top; // cells from there down to the axis
