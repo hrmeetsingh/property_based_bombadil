@@ -13,6 +13,18 @@ example cases, the suite states *invariants that must hold in every state*,
 and Bombadil autonomously explores the app — random clicks, typing, key
 presses, weird sequences of actions — checking the invariants as it goes.
 
+### Branches at a glance
+
+| Branch | State | What it is |
+| --- | --- | --- |
+| `main` | green | The original build, later reviewed and extended with Claude Opus 5.5 (this README describes it) |
+| `failing-demo` | red | `main` plus two commits that break both apps on purpose |
+| `opus-5.5` | green | A separate rebuild from scratch with Claude Opus 5.5, using the same [`project_setup.prompt.md`](project_setup.prompt.md) |
+| `opus-5.5-failing` | red | `opus-5.5` plus four small bugs, one commit each |
+
+See [Work done with Claude Opus 5.5](#work-done-with-claude-opus-55) for how
+the `opus-5.5*` branches differ from `main` and `failing-demo`.
+
 ---
 
 ## Quick start
@@ -607,9 +619,102 @@ new stories forever.
 
 ---
 
+## Work done with Claude Opus 5.5
+
+The first version of `main` and `failing-demo` was built on 2026-11-21
+(commits `4895f55`…`10a6d4c`). Claude Opus 5.5 then did two things.
+
+### 1. Review and extend `main`
+
+Three commits on `main` (and rebased onto `failing-demo`):
+
+- **`8a51b23` Check both directions in properties.** New properties fail
+  when an app does *nothing*: a valid submit must show the success panel and
+  toast, an invalid submit must show errors, and `h`/`l`/arrow keys must move
+  the TUI selection by exactly one day. The dotted-line property now checks
+  that the line reaches the highlighted point. Toast appearances are numbered
+  (`data-showing`) so a hide-and-reshow is not mistaken for one long showing.
+  The TUI draws each day at its exact price, `make test` keeps exit code 2
+  once any suite has violations, and README drift was fixed.
+- **`cbd1f6b` Teach property-based testing and traces.** Added the worked
+  examples, "Writing good properties", the operator guide and the
+  [traces](#how-bombadil-traces-work) section, all using real output.
+- **`f5ffac7` Show a real shrink result** in the trace section.
+
+### 2. Rebuild from scratch: `opus-5.5` and `opus-5.5-failing`
+
+To compare approaches, Opus 5.5 built the whole project again from the same
+[`project_setup.prompt.md`](project_setup.prompt.md). The result is the branch **`opus-5.5`**, with its own README. It
+**shares no history with `main`** (`git merge-base main opus-5.5` finds
+nothing), so treat it as a separate implementation, not a newer version of
+`main`. Never merge the two.
+
+**`opus-5.5-failing`** branches off `opus-5.5` and adds four bugs, one per
+commit (`git log opus-5.5..opus-5.5-failing`).
+
+#### How `opus-5.5` differs from `main`
+
+| | `main` | `opus-5.5` |
+| --- | --- | --- |
+| Specs | `bombadil/web.spec.ts`, `bombadil/tui.spec.ts` | `specs/web.spec.ts`, `specs/tui.spec.ts` |
+| Orchestration | `scripts/run-tests.sh` runs everything | `scripts/run-suite.sh` runs one suite; Make calls it per suite |
+| Web server | `scripts/serve.mjs`, port 8080 | `web/server.mjs`, port 5173 |
+| TUI | one `main.go`, stock `BMBDL` from `stock.json` | split into `main.go`, `model.go`, `chart.go`, `data.go`; stock `ACME` from embedded `prices.json`; adds `Home`/`g` and `End`/`G` keys |
+| Make settings | `TIME`, `PORT`, `HEADLESS`, `QUIESCENCE_MS` | `TIME_LIMIT`, `WEB_PORT` |
+| Extra targets | `build`, `serve`, `clean` | `build`, `run-web`, `run-tui`, `report`, `inspect-web`, `trace-tui`, `help` |
+| Output | `traces/` (binary trace + log) | `results/` (log, trace and exit code per suite) |
+| Report | violated properties and counts per suite | built from trace JSON: first violating state, the action before it, and Bombadil's explanation |
+| Properties | separate rules for each key, toast and field | adds `navigationStateMachine` (one rule for every key); properties read small derived cells, so a violation names the values involved (e.g. `selectedDay = 31.0`); `selectionInRange` alone reports out-of-range days, so one bug fails one rule |
+| Web app | toast countdown starts on appearance | toasts capped at three, one line each. Bombadil found this bug during the build: six quick submits pushed toasts below the top half of the screen |
+| Prerequisites | Node 20+, Go 1.25+ | Node 18+, Go 1.22+ |
+
+#### How `opus-5.5-failing` differs from `failing-demo`
+
+`failing-demo` breaks things loudly: six changes in two commits (toast moved
+to the bottom-left, auto-dismiss removed, email check dropped, right arrow
+skips two days, and so on), so many properties go red at once.
+
+`opus-5.5-failing` uses four small, realistic bugs, the kind that pass a
+quick manual check:
+
+| App | Bug | Property that catches it |
+| --- | --- | --- |
+| web | last name is only checked for being non-empty (`Smith3` passes) | `errorShownIffInvalid` |
+| web | a new toast cancels the previous toast's dismiss timer | `toastDisappears` |
+| tui | right-edge check uses the day count, not the last index, so "Day 31" can be selected | `selectionInRange` (and `navigationStateMachine`) |
+| tui | the dotted line stops one row below the marker | `dottedLineTouchesPoint` |
+
+Each suite stops at the first violation, so a run shows one failing property
+per suite. Fix that bug and the next one appears.
+
+#### Running the Opus 5.5 branches
+
+```sh
+git checkout opus-5.5
+make deps          # npm ci (Bombadil 0.8.0) + go mod download
+make test          # both suites, then the combined report (green)
+make test-web      # or one suite; make help lists every target
+make test TIME_LIMIT=2m WEB_PORT=5174
+
+git checkout opus-5.5-failing
+make test          # red: one violated property per suite
+make report        # print the last report again
+make trace-tui     # every screen of the last TUI trace
+make inspect-web   # open the last web trace in Bombadil Inspect
+
+git checkout main  # back to this implementation
+```
+
+The `opus-5.5` README has the full property tables and a walkthrough of
+fixing each bug.
+
+---
+
 ## Version control
 
-- Development happens on `main` (green) and `failing-demo` (red), with
-  incremental commits on both.
-- The configured remote is `https://github.com/hrmeetsingh/property_based_bombadil`
-  — `failing-demo` is a demonstration branch: never merge it into `main`.
+- `main` (green) and `failing-demo` (red) hold the original implementation;
+  `opus-5.5` (green) and `opus-5.5-failing` (red) hold the separate Opus 5.5
+  rebuild. Each pair has incremental commits.
+- The configured remote is `https://github.com/hrmeetsingh/property_based_bombadil`.
+  `failing-demo` and `opus-5.5-failing` are demonstration branches: never
+  merge them, and never merge `opus-5.5` into `main` (unrelated histories).
