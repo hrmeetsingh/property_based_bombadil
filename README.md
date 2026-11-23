@@ -194,10 +194,30 @@ How this differs from a regular test:
 - **You fix the app, never the test.** The property states the rule. It doesn't know about day 1, "Day 31" or `<b>Bold</b>`. Bombadil found those inputs itself.
 - **One property covers cases nobody wrote.** An example test for the dotted line would check one or two chosen days. The property checks every day the random walk visits, after any key sequence. The "Day 31" bug needs a key sequence that ends on day 30 followed by →. Nobody wrote that case; the random walk produced it.
 - **Fixing one bug can reveal the next.** Bombadil stops at the first violation, so bugs appear one at a time, in the order the exploration reaches them.
-- **Bombadil finds real bugs too.** While this repo was being built, `toastInTopRight` failed on the main branch: six quick valid submits stacked toasts below the top half of the screen. That led to the three-toast cap and the single-line toasts, a case no one had planned for.
+- **Bombadil finds real bugs too.** While this repo was being built, `toastInTopRight` failed on the `opus-5.5` branch: six quick valid submits stacked toasts below the top half of the screen. That led to the three-toast cap and the single-line toasts, a case no one had planned for.
+
+## Other branches in this repo
+
+This branch is one of two separate implementations of the same brief ([`project_setup.prompt.md`](project_setup.prompt.md)):
+
+| Branch | State | What it is |
+|---|---|---|
+| `opus-5.5` | green | this implementation, built from scratch with Claude Opus 5.5 |
+| `opus-5.5-failing` | red | `opus-5.5` plus four small bugs, one commit each |
+| `main` | green | the original implementation, later reviewed and extended with Claude Opus 5.5 |
+| `failing-demo` | red | `main` plus two commits that break both apps on purpose |
+
+`opus-5.5` shares no history with `main`, so the two can't be merged. The main differences:
+
+- **Layout:** specs live in `specs/` here and in `bombadil/` on `main`. Results go to `results/` here and to `traces/` on `main`. The form is served on port 5173 here and on port 8080 on `main`.
+- **Running:** here each suite runs through `scripts/run-suite.sh` (settings `TIME_LIMIT`, `WEB_PORT`). On `main` one script, `scripts/run-tests.sh`, runs everything (settings `TIME`, `PORT`, `HEADLESS`).
+- **Report:** this report shows the first violating state, the action before it and Bombadil's explanation. The `main` report lists the violated properties and counts per suite.
+- **Failing branch:** `failing-demo` makes six obvious breaks, so many properties fail at once. `opus-5.5-failing` adds four small bugs that show up one at a time.
+
+The README on `main` has a side-by-side comparison, worked examples and a guide to Bombadil traces.
 
 ## Notes and limits
 
 - The terminal driver is marked experimental in Bombadil 0.8.0, and it has no custom actions, so keys are sent as `TypeText` escape sequences (`\x1b[C` is →).
 - `always`, `eventually`, `next` and `now` must be imported from `@antithesishq/bombadil`. The npm README's example imports `always` from `@antithesishq/bombadil/browser`, and that import fails at runtime.
-- The intended remote is https://github.com/hrmeetsingh/property_based_bombadil. Nothing in this repo has been pushed.
+- The remote is https://github.com/hrmeetsingh/property_based_bombadil. Never merge `opus-5.5-failing` into `opus-5.5`, or `opus-5.5` into `main`.
